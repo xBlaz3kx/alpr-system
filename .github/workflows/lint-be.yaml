@@ -1,4 +1,4 @@
-name: "Lint"
+name: "Lint backend"
 on:
   pull_request:
     types: [ opened, synchronize ]
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./frontend
+        working-directory: ./backend
 
     steps:
       - name: Checkout

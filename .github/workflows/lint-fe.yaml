@@ -1,4 +1,4 @@
-name: "Lint"
+name: "Lint frontend"
 on:
   pull_request:
     types: [ opened, synchronize ]
@@ -11,7 +11,7 @@ on:
 jobs:
 
   lint:
-    name: "Lint frontend"
+    name: "Run linters"
     runs-on: ubuntu-latest
     defaults:
       run:
