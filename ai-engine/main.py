@@ -32,8 +32,8 @@ log_level = {
     "critical": logging.CRITICAL
 }.get(config['logging']['level'].lower(), logging.INFO)  # Default to INFO if level is not recognized
 # Initialize logger
-init_logger(logging_level=log_level, 
-            print_to_stdout=config['logging']['print_to_stdout'], 
+init_logger(logging_level=log_level,
+            print_to_stdout=config['logging']['print_to_stdout'],
             log_in_file=config['logging']['log_in_file'])
 
 # Extract camera configuration
@@ -61,7 +61,7 @@ mqtt_engine = MQTTEngine(mqtt_config)
 mqtt_engine.client.tls_insecure_set(True)
 mqtt_engine.connect()
 mqtt_engine.client.loop_start()
-    
+
 logging.debug(torch.cuda.is_available())
 ctx = cuda.Device(0).make_context()
 stream = cuda.Stream()
@@ -112,6 +112,9 @@ max_retries = config['engine'].get('max_retries', 5)  # Default to 5 retries if 
 # Initialize retry counter
 retry_counter = 0
 
+# todo send an online message to the broker - we'll know the AI engine is up and running
+# todo periodic healthchecks?
+
 # process frames until the user exits
 while True:
     try:
@@ -128,7 +131,7 @@ while True:
                 "error": "Max retries exceeded",
                 "message": f"Error capturing and processing image: {e}"
             }
-            mqtt_engine.publish(mqtt_message, "alpr/ai-engine/error")
+            mqtt_engine.publish(mqtt_message, "ai-engine/error")
             break  # Exit the loop after exceeding max retries
         time.sleep(5)  # Wait for a short period before trying again
         continue
@@ -138,14 +141,14 @@ while True:
         try:
             name = region['name']
             coords = region['coordinates']
-            
+
             # Extract the top-left and bottom-right coordinates
             x1, y1 = coords[0]['x'], coords[0]['y']
             x2, y2 = coords[2]['x'], coords[2]['y']
-            
+
             # Crop the region from the resized image
             region_img = raw_img[y1:y2, x1:x2, :]
-            
+
             img = jetson.utils.cudaFromNumpy(region_img)
             # detect objects in the image (with overlay)
             detections = net.Detect(img, overlay=config['engine'].get('overlay', "box,labels,conf"))
@@ -171,10 +174,10 @@ while True:
                     license_plate_text = ocr.predict(xs, stream)[0]
                     ctx.pop()
                     logging.debug("[OCR] Predicted: {}".format(license_plate_text))
-                    
+
                     data = {}
                     data["licensePlate"] = license_plate_text
-                    mqtt_engine.publish(data, "alpr/ramp/req")
+                    mqtt_engine.publish(data, "licencePlate/read")
                     # Draw the detection and text on the full-sized raw_img
                     cv2.rectangle(raw_img, (x_min + x1, y_min + y1), (x_max + x1, y_max + y1), (0, 255, 0), 2)
                     cv2.putText(raw_img, license_plate_text, (x_min + x1, y_min + y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
@@ -202,3 +205,5 @@ while True:
     # exit on input/output EOS
     if not input_stream.IsStreaming() or (output_stream and not output_stream.IsStreaming()):
        break
+
+# todo send a offline message to the broker - we'll know the AI engine is down

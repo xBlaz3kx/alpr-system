@@ -76,7 +76,7 @@ class RampController:
             self.mqtt_engine = MQTTEngine(mqtt_config)
             self.mqtt_engine.client.tls_insecure_set(True)  # Consider removing in production for secure connections
             self.mqtt_engine.connect()
-            self.mqtt_engine.subscribe("alpr/ramp/cmd")
+            self.mqtt_engine.subscribe("gate/open")
             self.mqtt_engine.client.on_message = self.handle_mqtt
         except Exception as e:
             logging.error(f"Error initializing MQTT: {e}")
@@ -96,31 +96,26 @@ class RampController:
             data = json.loads(message.payload)
             logging.debug(f"Received MQTT message: {data}")
 
-            if topic == "alpr/ramp/cmd":
-                if data["value"] == 1:
-                    if self.ramp_is_open or self.ignore_new_requests:
-                        logging.debug("Ramp is currently open or new requests are being ignored, ignoring request.")
-                        return
-                    self.open_ramp()
+            if topic == "gate/open":
+                if self.ramp_is_open or self.ignore_new_requests:
+                    logging.debug("Ramp is currently open or new requests are being ignored, ignoring request.")
+                    return
+                self.open_ramp()
 
-                    if self.ramp_open_timer:
-                        self.ramp_open_timer.cancel()
-                    if self.ramp_ignore_timer:
-                        self.ramp_ignore_timer.cancel()
+                if self.ramp_open_timer:
+                    self.ramp_open_timer.cancel()
+                if self.ramp_ignore_timer:
+                    self.ramp_ignore_timer.cancel()
 
-                    open_duration = self.config['gate']['open']['duration']
-                    self.ramp_open_timer = threading.Timer(open_duration, self.send_ramp_close_command)
-                    self.ramp_open_timer.start()
+                open_duration = self.config['gate']['open']['duration']
+                self.ramp_open_timer = threading.Timer(open_duration, self.send_ramp_close_command)
+                self.ramp_open_timer.start()
 
-                    ignore_duration = self.config['gate']['ignore_duration']
-                    self.ramp_ignore_timer = threading.Timer(ignore_duration, self.stop_ignoring_requests)
-                    self.ramp_ignore_timer.start()
-
-                elif data["value"] == 0:
-                    self.close_ramp()
-
-                else:
-                    logging.error("Invalid command value for ramp!")
+                ignore_duration = self.config['gate']['ignore_duration']
+                self.ramp_ignore_timer = threading.Timer(ignore_duration, self.stop_ignoring_requests)
+                self.ramp_ignore_timer.start()
+            elif topic == "gate/close":
+                self.close_ramp()
             else:
                 logging.debug(f"Unknown MQTT topic: {topic}")
         except Exception as e:
@@ -129,7 +124,7 @@ class RampController:
                 "error": "Exception in handle_mqtt",
                 "message": str(e)
             }
-            self.mqtt_engine.publish(mqtt_message, "alpr/gpio-handler/error")
+            self.mqtt_engine.publish(mqtt_message, "gpio-handler/error")
 
     def open_ramp(self) -> None:
         """
@@ -147,7 +142,8 @@ class RampController:
                 "error": "Exception in open_ramp",
                 "message": str(e)
             }
-            self.mqtt_engine.publish(mqtt_message, "alpr/gpio-handler/error")
+            self.mqtt_engine.publish(mqtt_message, "gpio-handler/error")
+            # todo these errors can be monitored in another way - not necessarily via mqtt
 
     def close_ramp(self) -> None:
         """
@@ -163,7 +159,7 @@ class RampController:
                 "error": "Exception in close_ramp",
                 "message": str(e)
             }
-            self.mqtt_engine.publish(mqtt_message, "alpr/gpio-handler/error")
+            self.mqtt_engine.publish(mqtt_message, "gpio-handler/error")
 
     def send_ramp_close_command(self) -> None:
         """
@@ -173,7 +169,7 @@ class RampController:
             mqtt_message = {
                 "value": 0
             }
-            self.mqtt_engine.publish(mqtt_message, "alpr/ramp/cmd")
+            self.mqtt_engine.publish(mqtt_message, "gate/close")
             logging.debug("Ramp close command sent")
         except Exception as e:
             logging.error(f"Exception in send_ramp_close_command: {e}")
@@ -181,7 +177,7 @@ class RampController:
                 "error": "Exception in send_ramp_close_command",
                 "message": str(e)
             }
-            self.mqtt_engine.publish(mqtt_message, "alpr/gpio-handler/error")
+            self.mqtt_engine.publish(mqtt_message, "gpio-handler/error")
 
     def stop_ignoring_requests(self) -> None:
         """
@@ -196,7 +192,7 @@ class RampController:
                 "error": "Exception in stop_ignoring_requests",
                 "message": str(e)
             }
-            self.mqtt_engine.publish(mqtt_message, "alpr/gpio-handler/error")
+            self.mqtt_engine.publish(mqtt_message, "gpio-handler/error")
 
     def start(self) -> None:
         """

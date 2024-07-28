@@ -165,11 +165,11 @@ export default class App {
     this.mqttProxy.event.on('events', async (topic: string, message: string) => {
         //console.log(`Received message on topic ${topic}: ${message}`);
         try {
-            if (topic === 'alpr/refresh/lp/whitelist') {
+            if (topic === 'whitelist/refresh') {
                 //console.log(message);
                 this.licensePlateWhitelist = await getLicensePlateWhitelist();
                 //console.log(this.licensePlateWhitelist);
-            } else if (topic === 'alpr/ramp/req') {
+            } else if (topic === 'licencePlate/read') {
                 // Parse the message to extract the license plate
                 const parsedMessage = JSON.parse(message);
                 const licensePlate = parsedMessage.licensePlate;
@@ -186,7 +186,7 @@ export default class App {
                         details: "open-ramp",
                         value: 1
                     });
-                    this.mqttProxy.mqttClient.publish("alpr/ramp/cmd", messageString);
+                    this.mqttProxy.mqttClient.publish("gate/open", messageString);
                     // Additional logic here if needed
                 } else {
                     console.log(`License plate ${licensePlate} is not valid or not found in the whitelist.`);
